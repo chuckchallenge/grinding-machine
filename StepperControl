@@ -1,0 +1,79 @@
+#include "GyverTM1637.h"  // Include the TM1637 display library
+GyverTM1637 disp(9, 10); // Create a display object with CLK pin 9 and DIO pin 10
+
+#include <GyverEncoder.h> // Include the GyverEncoder library
+#define CLK 6  // Define the CLK pin for the encoder
+#define DT 5   // Define the DT pin for the encoder
+#define SW 4   // Define the switch pin for the encoder
+Encoder enc1(CLK, DT, SW); // Instantiate an encoder object with the defined pins
+
+#define DRIVER_STEP_TIME 50  // Set driver step time to 50 milliseconds
+#include <GyverStepper.h> // Include the GyverStepper library
+GStepper<STEPPER2WIRE> stepper(8000, 11, 13, 12); // Create a stepper motor object with 8000 steps, and pins 11 (step), 13 (dir), and 12 (enable)
+
+// Declare and initialize variables
+float value = 0; // Variable to hold the encoder value
+float rev = 0;   // Variable that appears unused but stores another value
+int step = 2048; // A step count, possibly for another purpose in the future
+
+void setup() {
+  Serial.begin(115200);         // Start serial communication at 115200 baud rate
+  enc1.setType(TYPE2);         // Set the encoder type
+  stepper.setAcceleration(500); // Set the acceleration for the stepper motor
+  stepper.setRunMode(KEEP_SPEED); // Set the stepper to keep running at a constant speed
+  stepper.setSpeedDeg(5);      // Set the speed of the stepper motor in degrees
+  disp.brightness(7);           // Set the display brightness from 0 (min) to 7 (max)
+}
+
+void loop() {
+  enc1.tick();                  // Update the encoder state
+  disp.displayInt(value);       // Show the current value on the display
+  stepper.setSpeedDeg(value);   // Set the stepper speed based on the encoder value
+  stepper.tick();               // Update the stepper motor state
+  Serial.println(value);        // Print the current value to the serial monitor
+  
+  // If the value is zero, disable the stepper motor
+  if (value == 0) {
+     stepper.disable();
+    }
+
+  // If the encoder button is held down
+  if (enc1.isHolded()) {
+      stepper.brake();           // Apply braking to the stepper
+      value = 0;                 // Reset the value to 0
+  }
+  
+  // Check if the encoder is rotated left or right
+  if (enc1.isLeft()) {
+      value -= 10;              // Decrease the value by 10
+  }
+  if (enc1.isRight()) {
+      value += 10;              // Increase the value by 10
+  }
+
+  // If the encoder button is double-clicked, set value to 150
+  if (enc1.isDouble()) {
+      value = 150;
+  } 
+  
+  // Enable the stepper motor if the value is positive or negative
+  if (value > 0 || value < 0) {
+      stepper.enable();
+  }
+
+  // Limit the value to a maximum of 150 and display a warning
+  if (value > 150) {
+    value = 150; // Cap the value at 150
+    disp.displayByte(0x38,0x06,0x37,0x37); // Show a warning pattern on the display
+    delay (1500); // Wait for 1.5 seconds
+  }
+
+  // Limit the value to a minimum of -150 and display a warning
+  if (value < -150) {
+    value = -150; // Cap the value at -150
+    disp.displayByte(0x38,0x06,0x37,0x37); // Show a warning pattern on the display
+    delay (1500); // Wait for 1.5 seconds
+  }
+
+  rev = value; // Store the current value in rev (possibly for future use)
+} 
